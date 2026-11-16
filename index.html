@@ -641,4 +641,100 @@ const _d=dash;dash=()=>flow()+_d();
 })();
 
 render();whoami().then(()=>{if(R.v=="adm")render();return hydrate()}).then(()=>{if(R.v=="welcome"||R.v=="adm")render()});
-</script></body></html>
+</script><!-- TAQVION PWA START -->
+<meta name="theme-color" content="#061B36">
+<script>
+(function () {
+  if (!/^https?:$/.test(location.protocol)) return;
+  function makeIcon(size, pad) {
+    return new Promise(function (res) {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement('canvas');
+        c.width = c.height = size;
+        var x = c.getContext('2d');
+        x.fillStyle = '#061B36';
+        x.fillRect(0, 0, size, size);
+        var box = size * (1 - 2 * pad);
+        var r = Math.min(box / img.width, box / img.height);
+        var w = img.width * r, h = img.height * r;
+        x.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        res(c.toDataURL('image/png'));
+      };
+      img.onerror = function () { res(null); };
+      img.src = MK;
+    });
+  }
+  Promise.all([makeIcon(192, 0.1), makeIcon(512, 0.1), makeIcon(512, 0.2)]).then(function (ic) {
+    if (!ic[0]) return;
+    var base = location.origin + location.pathname;
+    var manifest = {
+      name: 'TAQVION ERP', short_name: 'TAQVION',
+      description: 'One Platform. Every Industry. Smarter Business.',
+      start_url: base, scope: base.replace(/[^\/]*$/, ''),
+      display: 'standalone', background_color: '#061B36', theme_color: '#061B36',
+      icons: [
+        { src: ic[0], sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: ic[1], sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: ic[2], sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+      ]
+    };
+    var l = document.createElement('link');
+    l.rel = 'manifest';
+    l.href = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }));
+    document.head.appendChild(l);
+    var a = document.createElement('link');
+    a.rel = 'apple-touch-icon'; a.href = ic[0];
+    document.head.appendChild(a);
+    [['apple-mobile-web-app-capable', 'yes'], ['mobile-web-app-capable', 'yes'],
+     ['apple-mobile-web-app-title', 'TAQVION ERP'],
+     ['apple-mobile-web-app-status-bar-style', 'black-translucent']].forEach(function (m) {
+      var t = document.createElement('meta'); t.name = m[0]; t.content = m[1]; document.head.appendChild(t);
+    });
+  });
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+  var deferred;
+  function pill(text, onclick) {
+    var b = document.createElement('button');
+    b.id = 'pwaBtn'; b.textContent = text; b.className = 'pri';
+    b.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:60;border-radius:99px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.3)';
+    b.onclick = onclick;
+    document.body.appendChild(b);
+  }
+  addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault(); deferred = e;
+    if (document.getElementById('pwaBtn')) return;
+    pill('Install app', function () {
+      deferred.prompt();
+      deferred.userChoice.then(function () {
+        deferred = null;
+        var b = document.getElementById('pwaBtn'); if (b) b.remove();
+      });
+    });
+  });
+  addEventListener('appinstalled', function () {
+    var b = document.getElementById('pwaBtn'); if (b) b.remove();
+  });
+  var ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  var standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  var seen = false;
+  try { seen = localStorage.getItem('tq_ios_hint'); } catch (e) {}
+  if (ios && !standalone && !seen) {
+    addEventListener('load', function () {
+      var d = document.createElement('div');
+      d.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:60;background:#12233F;color:#fff;padding:12px 14px;border-radius:12px;font:14px system-ui;box-shadow:0 6px 18px rgba(0,0,0,.35)';
+      d.innerHTML = 'To install: tap <b>Share</b>, then <b>Add to Home Screen</b>. <button style="margin-left:8px;padding:3px 10px;border-radius:8px">OK</button>';
+      d.querySelector('button').onclick = function () {
+        try { localStorage.setItem('tq_ios_hint', '1'); } catch (e) {}
+        d.remove();
+      };
+      document.body.appendChild(d);
+    });
+  }
+})();
+</script>
+<!-- TAQVION PWA END -->
+
+</body></html>
