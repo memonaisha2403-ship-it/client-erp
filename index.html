@@ -641,6 +641,194 @@ const _d=dash;dash=()=>flow()+_d();
 })();
 
 render();whoami().then(()=>{if(R.v=="adm")render();return hydrate()}).then(()=>{if(R.v=="welcome"||R.v=="adm")render()});
+
+/* ===== Invoice Builder upgrade: paper sizes, design editor, exact-size print & PDF (additive layer; existing logic untouched) ===== */
+const IPK=()=>W.key+'_ifmt';
+const IPS=[['A4','A4 · 210 × 297 mm'],['A5','A5 · 148 × 210 mm'],['R58','Roller / Thermal 58 mm'],['R80','Roller / Thermal 80 mm'],['CUSTOM','Custom size']];
+const IPM={A4:[10,10,10,10],A5:[8,8,8,8],R58:[2,2,2,2],R80:[3,3,3,3],CUSTOM:[5,5,5,5]};
+const IPSH=[['logo','Logo'],['addr','Business address & contact'],['tid','GSTIN / tax ID'],['cust','Customer address & phone'],['ship','Shipping address'],['date','Invoice date'],['due','Due date'],['status','Status'],['sku','Item SKU / code'],['desc','Item description'],['disc','Discount column'],['taxcol','Tax column'],['words','Amount in words'],['paid','Amount paid & balance'],['lastpay','Last payment details'],['pay','Payment details'],['notes','Notes'],['terms','Terms & conditions'],['sign','Signature'],['foot','Footer message']];
+const IPD={size:'A4',orient:'portrait',cw:80,ch:200,cauto:true,mg:{},fs:100,accent:'#000000',align:'left',grid:'lines',title:'',tidl:'Tax ID',pay:'',foot:'Thank you for your business.',logo:'',lw:0,lh:0,show:{}};
+let IPP=null,IPQ=0,IPZ='fit',CQ=0;
+const ipNorm=o=>{const s={...IPD,...o};s.show={...Object.fromEntries(IPSH.map(a=>[a[0],true])),...(o.show||{})};s.mg={...(o.mg||{})};if(!IPM[s.size])s.size='A4';if(s.orient!='landscape')s.orient='portrait';return s};
+const ipCfg=()=>{if(!W)return ipNorm({});if(IPP&&IPP.k==IPK())return IPP.v;return ipNorm(LS.g(IPK(),{}))};
+const ipSave=v=>{IPP={k:IPK(),v};clearTimeout(IPQ);IPQ=setTimeout(ipFlush,500)};
+function ipFlush(){if(!IPP)return;clearTimeout(IPQ);const k=IPP.k,v=IPP.v;IPP=null;LS.s(k,v)}
+addEventListener('pagehide',ipFlush);document.addEventListener('visibilitychange',()=>{if(document.hidden)ipFlush()});
+DL.addEventListener('close',()=>{DL.style.width='';ipFlush()});
+const ipN=(v,a,b,d)=>{v=parseFloat(v);return isNaN(v)?d:Math.min(b,Math.max(a,v))};
+const ipnb=s=>E(s).replace(/\n/g,'<br>');
+/* physical dimensions in mm, margins, layout kind and base font for the selected paper */
+function ipDim(PF){PF=PF||ipCfg();let w,h=0,auto=false;
+if(PF.size=='A4'){w=210;h=297}else if(PF.size=='A5'){w=148;h=210}else if(PF.size=='R58'){w=58;auto=true}else if(PF.size=='R80'){w=80;auto=true}
+else{w=ipN(PF.cw,30,420,80);if(PF.cauto)auto=true;else h=ipN(PF.ch,50,1200,200)}
+if((PF.size=='A4'||PF.size=='A5')&&PF.orient=='landscape'){const t=w;w=h;h=t}
+const dm=IPM[PF.size],g=PF.mg[PF.size]||dm,m=g.map((v,k)=>ipN(v,0,40,dm[k]));
+if(m[1]+m[3]>w-20){const x=Math.min(m[1],Math.max(0,(w-20)/2));m[1]=m[3]=x}
+if(!auto&&m[0]+m[2]>h-20){const x=Math.min(m[0],Math.max(0,(h-20)/2));m[0]=m[2]=x}
+const roll=auto||w<110,fs=(roll?(w<=62?9:w<=90?10.5:11.5):(w>=200?12:w>=140?10.5:9.5))*ipN(PF.fs,70,140,100)/100;
+return{w,h,auto,m,roll,fs,P:PF}}
+const ipLbl=D=>{const n=(IPS.find(a=>a[0]==D.P.size)||IPS[0])[1].split(' ·')[0],o=(D.P.size=='A4'||D.P.size=='A5')?' '+D.P.orient:'';return `${n}${o} · ${+D.w.toFixed(1)} × ${D.auto?'auto':+D.h.toFixed(1)} mm · margins ${D.m.map(v=>+(+v).toFixed(1)).join('/')} mm · ${D.roll?'receipt':'full-page'} layout`};
+const ipLg=(D,PF)=>{const r=(+PF.lw>0&&+PF.lh>0)?PF.lw/PF.lh:2.5,hm=D.roll?12:16,wm=Math.min(hm*r,(D.w-D.m[1]-D.m[3])*(D.roll?.7:.35));return{w:wm,h:wm/r}};
+const ipHex=h=>{const m=/^#([0-9a-f]{6})$/i.exec(h||'');return m?[0,2,4].map(k=>parseInt(m[1].slice(k,k+2),16)):[0,0,0]};
+/* ---- styles (screen preview + exact-size print host) ---- */
+(()=>{const s=document.createElement('style');s.id='ipcss';s.textContent=`
+.ipw{overflow:auto;border:1px solid var(--bd);border-radius:10px;background:#dfe6f0;padding:12px;max-height:80vh}
+.ipf{position:relative;background:#fff;color:#111;margin:0 auto;box-sizing:border-box;box-shadow:0 2px 12px rgba(6,27,54,.25);font-family:Arial,Helvetica,sans-serif;line-height:1.35;overflow-wrap:anywhere;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.ipf *{box-sizing:border-box}
+.ipf table{width:100%;border-collapse:collapse;background:#fff}
+.ipf th,.ipf td{padding:.35em .3em;white-space:normal;vertical-align:top;text-align:left;border-bottom:1px solid #ddd;color:#111;font-size:1em;text-transform:none;cursor:default;letter-spacing:0}
+.ipf th{border-top:1px solid var(--ac);border-bottom:1px solid var(--ac);font-weight:700;font-size:.92em}
+.ipf.gr th,.ipf.gr td{border:1px solid #999}
+.ipf .r{text-align:right}.ipf .c{text-align:center}
+.ipf small{display:block;color:#555;text-transform:uppercase;letter-spacing:.05em;font-size:.78em}
+.ipf .ihd{display:flex;justify-content:space-between;gap:3mm;border-bottom:2px solid var(--ac);padding-bottom:2mm}
+.ipf .ihd.ct{flex-direction:column;align-items:center;text-align:center}
+.ipf .inm{font-size:1.3em}.ipf .itt{font-size:1.9em;font-weight:700;letter-spacing:.06em;line-height:1.1}
+.ipf .ilg{display:block;margin-bottom:1.5mm;object-fit:contain}.ipf .ihd.ct .ilg,.ipf .ic .ilg{margin-left:auto;margin-right:auto}
+.ipf .ihr{text-align:right}.ipf .ihd.ct .ihr{text-align:center}
+.ipf .ipt{display:flex;gap:5mm;margin:3mm 0}.ipf .ipt>div{flex:1;min-width:0}
+.ipf .ibl{margin-top:2.5mm}
+.ipf .itl{margin-left:auto;width:62%;max-width:90mm}.ipf .itl td{border:0;padding:.15em .3em}.ipf .itl .gt td{border-top:1px solid #000;border-bottom:1px solid #000;font-weight:700;font-size:1.1em}
+.ipf .isg{margin-top:12mm;text-align:right}.ipf .isg span{display:inline-block;border-top:1px solid #000;padding-top:1mm;min-width:45mm}
+.ipf .ic{text-align:center}.ipf .isp{border-top:1px dashed #000;margin:1.5mm 0}
+.ipf .irw{display:flex;justify-content:space-between;gap:2mm;flex-wrap:wrap}.ipf .irw>b,.ipf .irw>span:last-child{margin-left:auto}
+.ipf .isb{font-size:.88em;color:#333}.ipf .iit{margin-bottom:1.2mm}.ipf .ift{text-align:center;margin-top:2mm}
+.ipf .ipg{position:absolute;inset:0;pointer-events:none;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--ph) - 1px),#e5484d calc(var(--ph) - 1px),#e5484d var(--ph))}
+.ipx .ipf{width:auto!important;padding:0!important;min-height:0!important;zoom:1!important;box-shadow:none!important;margin:0!important}
+.ipinfo{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:6px;font-size:12px;color:var(--mu)}
+.ipsel select{font-size:15px;font-weight:600;padding:9px 10px;border:2px solid var(--pr);width:100%}
+.ipor{display:flex;gap:10px;align-items:center;margin:8px 0}
+.ipg2,.ipmg{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:8px 0}
+.ipmg{grid-template-columns:repeat(4,1fr)}@media(max-width:480px){.ipmg{grid-template-columns:repeat(2,1fr)}}
+.ipp label,.ipd label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mu)}
+.ipp input,.ipd input,.ipd textarea,.ipd select{width:100%}
+.ipp label.ipck,.ipd label.ipck{flex-direction:row;align-items:center;gap:6px;color:var(--tx)}.ipck input{width:auto}
+.ipd summary{cursor:pointer}.ipd h3{margin:12px 0 4px}
+.ipsh{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 10px}
+#pinv{display:none}
+@media print{html.pinv,html.pinv body{height:auto!important;background:#fff!important;margin:0!important;overflow:visible!important}
+body.pinv #app,body.pinv dialog,body.pinv #toast,body.pinv #pwaBtn{display:none!important}
+body.pinv #pinv{display:block!important}
+#pinv .ipf{width:auto!important;min-height:0!important;padding:0!important;margin:0!important;box-shadow:none!important;zoom:1!important}
+#pinv .ipg{display:none!important}#pinv .ipf tr,#pinv .iit{break-inside:avoid;page-break-inside:avoid}#pinv thead{display:table-header-group}}
+`;document.head.appendChild(s)})();
+/* ---- invoice paper HTML (used by live preview, print preview and the real print host) ---- */
+function ipHtml(i){const D=ipDim(),PF=D.P,S=PF.show,co=CO(),c=i.cust,t=tot(i),its=i.items.filter(x=>x.name.trim()||x.price!==''),lp=i.payments[i.payments.length-1],ttl=PF.title.trim()||IT().t,ac=/^#[0-9a-fA-F]{6}$/.test(PF.accent)?PF.accent:'#000000',lg=S.logo&&PF.logo?ipLg(D,PF):null,
+st=`width:${D.w}mm;${D.auto?'':'min-height:'+D.h+'mm;'}padding:${D.m[0]}mm ${D.m[1]}mm ${D.m[2]}mm ${D.m[3]}mm;font-size:${D.fs}px;--ac:${ac}`,
+img=lg?`<img class="ilg" alt="" src="${PF.logo}" style="width:${lg.w.toFixed(2)}mm;height:auto;aspect-ratio:${Math.round(lg.w*100)}/${Math.round(lg.h*100)}">`:'',
+guide=D.auto?'':`<div class="ipg" style="--ph:${D.h}mm"></div>`;let b;
+if(!D.roll){
+b=`<div class="ihd ${PF.align=='center'?'ct':''}"><div>${img}<b class="inm">${E(co.name)}</b>${S.addr?`<br>${ipnb(co.addr)}<br>${E([co.phone,co.email].filter(Boolean).join(' | '))}`:''}${S.tid&&co.tid?`<br>${E(PF.tidl)}: ${E(co.tid)}`:''}</div><div class="ihr"><div class="itt">${E(ttl)}</div>No: <b>${E(i.no||'(unsaved)')}</b>${S.date?`<br>Date: ${i.date}`:''}${S.due?`<br>Due: ${i.due}`:''}${S.status?`<br>Status: ${ist(i)}`:''}</div></div>
+<div class="ipt"><div><small>${E(IT().p)}</small><b>${E(c.name)||'—'}</b>${S.cust?`<br>${ipnb(c.addr)}${c.ph?`<br>WhatsApp: ${E(c.cc+' '+c.ph)}`:''}`:''}</div>${S.ship?`<div><small>Ship to</small>${ipnb(c.ship)||'Same as billing address'}</div>`:''}</div>
+<table><thead><tr><th>#</th><th>${E(IT().c)}</th><th class="r">Qty</th><th class="r">Unit price</th>${S.disc?'<th class="r">Disc %</th>':''}${S.taxcol?'<th class="r">Tax</th>':''}<th class="r">Total</th></tr></thead><tbody>${its.map((x,k)=>{const l=tot({items:[x],payments:[],charges:0}).L[0];return `<tr><td>${k+1}</td><td><b>${E(x.name)}</b>${S.sku&&x.sku?' ['+E(x.sku)+']':''}${S.desc&&x.desc?'<br>'+E(x.desc):''}</td><td class="r">${E(x.qty)} ${E(x.unit)}</td><td class="r">${mny(P(+x.price||0))}</td>${S.disc?`<td class="r">${+x.disc||0}</td>`:''}${S.taxcol?`<td class="r">${mny(l.t)} (${+x.tax||0}%)</td>`:''}<td class="r">${mny(l.tt)}</td></tr>`}).join('')||`<tr><td colspan="7">No items yet.</td></tr>`}</tbody></table>
+<table class="itl"><tr><td>Subtotal (after discounts)</td><td class="r">${mny(t.sub)}</td></tr><tr><td>Tax</td><td class="r">${mny(t.tax)}</td></tr>${t.ch?`<tr><td>Additional charges</td><td class="r">${mny(t.ch)}</td></tr>`:''}<tr class="gt"><td>Grand total</td><td class="r">${mny(t.gt)}</td></tr>${S.paid?`<tr><td>Amount paid</td><td class="r">${mny(t.paid)}</td></tr><tr><td><b>Balance due</b></td><td class="r"><b>${mny(t.bal)}</b></td></tr>`:''}</table>
+${S.words?`<div class="ibl"><small>Amount in words</small>${words(t.gt)}</div>`:''}${S.lastpay&&lp?`<div class="ibl"><small>Last payment</small>${E(lp.method)}${lp.ref?' · Ref '+E(lp.ref):''} · ${lp.date}</div>`:''}${S.pay&&PF.pay.trim()?`<div class="ibl"><small>Payment details</small>${ipnb(PF.pay)}</div>`:''}${S.notes&&i.notes?`<div class="ibl"><small>Notes</small>${ipnb(i.notes)}</div>`:''}${S.terms&&co.terms?`<div class="ibl"><small>Terms</small>${ipnb(co.terms)}</div>`:''}${S.sign?`<div class="isg"><span>${E(co.sign)}</span></div>`:''}${S.foot&&PF.foot.trim()?`<div class="ift">${ipnb(PF.foot)}</div>`:''}`;
+}else{
+b=`<div class="ic">${img}<b class="inm">${E(co.name)}</b>${S.addr?`<br>${ipnb(co.addr)}${[co.phone,co.email].filter(Boolean).length?'<br>'+E([co.phone,co.email].filter(Boolean).join(' | ')):''}`:''}${S.tid&&co.tid?`<br>${E(PF.tidl)}: ${E(co.tid)}`:''}</div><div class="isp"></div>
+<div class="ic"><b>${E(ttl)}</b></div><div class="irw"><span>No: ${E(i.no||'(unsaved)')}</span>${S.date?`<span>${i.date}</span>`:''}</div>${S.due||S.status?`<div class="irw">${S.due?`<span>Due: ${i.due}</span>`:'<span></span>'}${S.status?`<span>${ist(i)}</span>`:''}</div>`:''}<div class="isp"></div>
+<div><b>${E(IT().p)}: ${E(c.name)||'—'}</b>${S.cust?`${c.ph?`<br>Ph: ${E(c.cc+' '+c.ph)}`:''}${c.addr?`<br>${ipnb(c.addr)}`:''}`:''}${S.ship&&c.ship?`<br>Ship to: ${ipnb(c.ship)}`:''}</div><div class="isp"></div>
+${its.map(x=>{const l=tot({items:[x],payments:[],charges:0}).L[0],dn=(S.disc&&+x.disc)?`Disc ${+x.disc}% `:'',tn=(S.taxcol&&+x.tax)?`Tax ${+x.tax}% (${mny(l.t)})`:'';return `<div class="iit"><b>${E(x.name)}</b>${S.sku&&x.sku?' ['+E(x.sku)+']':''}${S.desc&&x.desc?`<div class="isb">${E(x.desc)}</div>`:''}<div class="irw"><span>${E(x.qty)} ${E(x.unit)} × ${mny(P(+x.price||0))}</span><b>${mny(l.tt)}</b></div>${dn||tn?`<div class="isb">${dn}${tn}</div>`:''}</div>`}).join('')||'<div>No items yet.</div>'}<div class="isp"></div>
+<div class="irw"><span>Subtotal</span><span>${mny(t.sub)}</span></div><div class="irw"><span>Tax</span><span>${mny(t.tax)}</span></div>${t.ch?`<div class="irw"><span>Charges</span><span>${mny(t.ch)}</span></div>`:''}<div class="irw" style="font-size:1.12em"><b>TOTAL</b><b>${mny(t.gt)}</b></div>${S.paid?`<div class="irw"><span>Paid</span><span>${mny(t.paid)}</span></div><div class="irw"><b>Balance</b><b>${mny(t.bal)}</b></div>`:''}
+${S.words?`<div class="isb" style="margin-top:1.5mm">${words(t.gt)}</div>`:''}${S.lastpay&&lp?`<div class="isb">Last payment: ${E(lp.method)}${lp.ref?' · Ref '+E(lp.ref):''} · ${lp.date}</div>`:''}${S.pay&&PF.pay.trim()?`<div class="isp"></div><div class="isb">${ipnb(PF.pay)}</div>`:''}${S.notes&&i.notes?`<div class="isb">Notes: ${ipnb(i.notes)}</div>`:''}${S.terms&&co.terms?`<div class="isp"></div><div class="isb">${ipnb(co.terms)}</div>`:''}${S.sign?`<div class="isg" style="margin-top:8mm"><span>${E(co.sign)}</span></div>`:''}${S.foot&&PF.foot.trim()?`<div class="ift">${ipnb(PF.foot)}</div>`:''}`}
+return `<div class="ipf${PF.grid=='grid'?' gr':''}" style="${st}">${b}${guide}</div>`}
+/* live preview: replaces the old fixed A4 sheet (same function name, so pv() and every existing call keep working) */
+sheet=function(i){return `<div class="ipinfo"><span class="ipl">${E(ipLbl(ipDim()))}</span><button type="button" onclick="ipZoom()">${IPZ=='fit'?'Actual size':'Fit to screen'}</button></div><div class="ipw">${ipHtml(i)}</div>`};
+function ipFit(){document.querySelectorAll('.ipw').forEach(w=>{const f=w.querySelector('.ipf');if(!f)return;f.style.zoom=1;const px=ipDim().w*96/25.4,av=w.clientWidth-26;f.style.zoom=IPZ=='fit'?Math.min(1.5,Math.max(.2,av/px)):1})}
+function ipZoom(){IPZ=IPZ=='fit'?'100':'fit';ipRef()}
+let ipT=0;new MutationObserver(()=>{cancelAnimationFrame(ipT);ipT=requestAnimationFrame(ipFit)}).observe(document.body,{childList:true,subtree:true});addEventListener('resize',ipFit);
+const ipSample=()=>({no:'INV-SAMPLE',st:'Issued',date:today,due:addD(14),cust:{name:'Sample Customer',cc:'+91',ph:'9876543210',addr:'12 Market Road, Himatnagar',ship:''},items:[{name:'Sample product A',sku:'SKU-001',desc:'Description line',qty:2,unit:'pcs',price:'499.00',disc:5,tax:CO().tax||'18'},{name:'Service charge',sku:'',desc:'',qty:1,unit:'job',price:'1500',disc:0,tax:CO().tax||'18'}],charges:0,notes:'',payments:[],hist:[]});
+function ipRef(){const a=Q('#pv');if(a&&W&&W.iv&&IV)a.innerHTML=sheet(IV);const b=Q('#ipdv');if(b&&IV)b.innerHTML=sheet(IV);const c=Q('#ipsv');if(c)c.innerHTML=sheet(ipSample());document.querySelectorAll('.ipl').forEach(e=>e.textContent=ipLbl(ipDim()));ipFit()}
+/* ---- settings panel ---- */
+function ippanelInner(){const PF=ipCfg(),D=ipDim(PF),co=CO(),S=PF.show,ro=can('invoice')?'':'disabled',rs=can('settings')?'':'disabled',pg=PF.size=='A4'||PF.size=='A5';
+return `<div class="pn ipp"><h3>Paper size &amp; print format</h3>
+<label class="ipsel">Paper size<select id="ip_size" ${ro} onchange="ipSet('size',this.value,1)">${IPS.map(a=>`<option value="${a[0]}" ${PF.size==a[0]?'selected':''}>${a[1]}</option>`).join('')}</select></label>
+${pg?`<div class="ipor"><span class="mu">Orientation</span><div class="seg" role="group" aria-label="Orientation">${['portrait','landscape'].map(o=>`<button type="button" class="${PF.orient==o?'on':''}" ${ro} onclick="ipSet('orient','${o}',1)">${o[0].toUpperCase()+o.slice(1)}</button>`).join('')}</div></div>`:''}
+${PF.size=='CUSTOM'?`<div class="ipg2"><label>Width (mm)<input type="number" min="30" max="420" step="1" value="${PF.cw}" ${ro} oninput="ipSet('cw',this.value)"></label><label>Height (mm)<input type="number" min="50" max="1200" step="1" value="${PF.ch}" ${ro||PF.cauto?'disabled':''} oninput="ipSet('ch',this.value)"></label><label class="ipck"><input type="checkbox" ${PF.cauto?'checked':''} ${ro} onchange="ipSet('cauto',this.checked,1)"> Auto height (roller)</label></div>`:''}
+<div class="ipmg">${['Top','Right','Bottom','Left'].map((l,n)=>`<label>${l} (mm)<input type="number" min="0" max="40" step="0.5" value="${+(+D.m[n]).toFixed(1)}" ${ro} oninput="ipMg(${n},this.value)"></label>`).join('')}</div>
+<p class="mu ipl" style="margin:6px 0 0">${E(ipLbl(D))}</p>${can('invoice')?'':'<small class="mu">Your role cannot change invoice settings.</small>'}</div>
+<details class="pn ipd"><summary><b>Design editor</b> <span class="mu">business, fields, text and style</span></summary>
+<h3>Business</h3><div class="ipg2"><label>Business name<input value="${E(co.name)}" ${rs} oninput="ipCo('name',this.value)"></label><label>Address<input value="${E(co.addr)}" ${rs} oninput="ipCo('addr',this.value)"></label><label>Phone<input value="${E(co.phone)}" ${rs} oninput="ipCo('phone',this.value)"></label><label>Email<input value="${E(co.email)}" ${rs} oninput="ipCo('email',this.value)"></label><label>Tax label (e.g. GSTIN)<input value="${E(PF.tidl)}" ${ro} maxlength="20" oninput="ipSet('tidl',this.value)"></label><label>GSTIN / tax ID<input value="${E(co.tid)}" ${rs} oninput="ipCo('tid',this.value)"></label><label>Signature label<input value="${E(co.sign)}" ${rs} oninput="ipCo('sign',this.value)"></label><label>Logo (PNG / JPG)<input type="file" accept="image/png,image/jpeg,image/webp" ${rs} onchange="ipLogoUp(this)"></label></div>
+${PF.logo?`<div class="ipor"><img src="${PF.logo}" alt="Logo" style="height:36px;max-width:120px;object-fit:contain;background:#fff;border:1px solid var(--bd);border-radius:6px"><button type="button" ${rs} onclick="ipLogoDel()">Remove logo</button></div>`:''}
+<h3>Text</h3><div class="ipg2"><label>Invoice title (blank = default)<input value="${E(PF.title)}" ${ro} maxlength="40" oninput="ipSet('title',this.value)"></label><label>Footer message<input value="${E(PF.foot)}" ${ro} maxlength="120" oninput="ipSet('foot',this.value)"></label></div>
+<label>Payment details (bank, UPI, etc.)<textarea rows="3" ${ro} maxlength="400" oninput="ipSet('pay',this.value)">${E(PF.pay)}</textarea></label><label style="margin-top:6px">Terms &amp; conditions<textarea rows="3" ${rs} maxlength="600" oninput="ipCo('terms',this.value)">${E(co.terms)}</textarea></label>
+<h3>Style</h3><div class="ipg2"><label>Accent colour<input type="color" value="${/^#[0-9a-fA-F]{6}$/.test(PF.accent)?PF.accent:'#000000'}" ${ro} oninput="ipSet('accent',this.value)"></label><label>Font size ${ipN(PF.fs,70,140,100)}%<input type="range" min="70" max="140" step="5" value="${ipN(PF.fs,70,140,100)}" ${ro} oninput="ipSet('fs',this.value);this.previousSibling.textContent='Font size '+this.value+'%'"></label><label>Header alignment (full-page)<select ${ro} onchange="ipSet('align',this.value)"><option value="left" ${PF.align!='center'?'selected':''}>Left / right</option><option value="center" ${PF.align=='center'?'selected':''}>Centered</option></select></label><label>Table style<select ${ro} onchange="ipSet('grid',this.value)"><option value="lines" ${PF.grid!='grid'?'selected':''}>Row lines</option><option value="grid" ${PF.grid=='grid'?'selected':''}>Full grid</option></select></label></div>
+<h3>Show / hide fields</h3><div class="ipsh">${IPSH.map(([k,l])=>`<label class="ipck"><input type="checkbox" ${S[k]?'checked':''} ${ro} onchange="ipShow('${k}',this.checked)"> ${l}</label>`).join('')}</div>
+<div class="act" style="margin-top:10px"><button type="button" ${ro} onclick="ipReset()">Reset design to defaults</button></div><small class="mu">Saved for this client and used for every invoice. Existing invoices keep their data; only how they are laid out on paper changes.</small></details>`}
+const ippanel=()=>`<div class="ippanel">${ippanelInner()}</div>`;
+function ipPanel(){document.querySelectorAll('.ippanel').forEach(e=>{const o=e.querySelector('.ipd'),op=o&&o.open;e.innerHTML=ippanelInner();if(op){const n=e.querySelector('.ipd');if(n)n.open=true}});ipRef()}
+function ipSet(k,v,re){if(!ok('invoice')){ipPanel();return}const PF=ipCfg();PF[k]=v;ipSave(PF);re?ipPanel():ipRef()}
+function ipShow(k,v){if(!ok('invoice')){ipPanel();return}const PF=ipCfg();PF.show[k]=!!v;ipSave(PF);ipRef()}
+function ipMg(n,v){if(!ok('invoice')){ipPanel();return}const PF=ipCfg(),a=[...(PF.mg[PF.size]||ipDim(PF).m)];a[n]=v;PF.mg[PF.size]=a;ipSave(PF);ipRef()}
+function ipCo(f,v){if(!ok('settings')){ipPanel();return}const k=W.key+'_co';LS.s(k,{...LS.g(k,{}),[f]:v});ipRef()}
+function ipReset(){if(!ok('invoice'))return;if(!confirm('Reset the invoice design (fields, text, style) to defaults? Paper size, margins and logo are kept.'))return;const o=ipCfg();ipSave(ipNorm({size:o.size,orient:o.orient,cw:o.cw,ch:o.ch,cauto:o.cauto,mg:o.mg,logo:o.logo,lw:o.lw,lh:o.lh}));ipPanel()}
+function ipLogoDel(){if(!ok('settings'))return;const PF=ipCfg();PF.logo='';PF.lw=PF.lh=0;ipSave(PF);ipPanel()}
+function ipLogoUp(inp){if(!ok('settings')){inp.value='';return}const f=inp.files&&inp.files[0];if(!f)return;if(!/^image\/(png|jpe?g|webp)$/.test(f.type)){toast('Choose a PNG, JPG or WebP image.');return}const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,400/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*sc));c.height=Math.max(1,Math.round(im.height*sc));const x=c.getContext('2d'),png=f.type!='image/jpeg';if(!png){x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height)}x.drawImage(im,0,0,c.width,c.height);const u=c.toDataURL(png?'image/png':'image/jpeg',.9);if(u.length>400000){toast('Logo is too large after resizing; use a simpler image.');return}const PF=ipCfg();PF.logo=u;PF.lw=c.width;PF.lh=c.height;ipSave(PF);ipPanel();toast('Logo added.')};im.onerror=()=>toast('Could not read that image.');im.src=r.result};r.readAsDataURL(f)}
+/* ---- print preview / real print ---- */
+function ipPrev(){const e=chk(IV,1);if(e){toast(e);return}ipFlush();DL.style.width='min(96vw,980px)';
+DL.innerHTML=`<h3>Print preview · ${E(IV.no||'unsaved')}</h3><div class="ipor"><label class="ipsel" style="flex:1;display:flex;flex-direction:column;font-size:12px;color:var(--mu)">Paper size<select ${can('invoice')?'':'disabled'} onchange="ipSet('size',this.value,1)">${IPS.map(a=>`<option value="${a[0]}" ${ipCfg().size==a[0]?'selected':''}>${a[1]}</option>`).join('')}</select></label></div><div id="ipdv">${sheet(IV)}</div><p class="mu" style="margin:6px 0">Preview is shown at the selected physical size. ${ipDim().auto?'Roller height is calculated from the content when printing.':'The red line marks the approximate page break.'}</p><div class="act"><button onclick="DL.close()">Close</button><button onclick="pdfBtn()" ${IV.no?'':'disabled title="Save the invoice first"'}>Download PDF</button><button class="pri" onclick="ipPrint()">Print</button></div>`;DL.showModal();ipFit()}
+prBtn=function(){ipPrev()};
+/* builds the print host + exact @page size; returns a cleanup function (also used by tests) */
+function ipPrintPrep(){const D=ipDim();let H=D.h;
+if(D.auto){const m=document.createElement('div');m.className='ipx';m.style.cssText=`position:fixed;left:-9999px;top:0;width:${D.w-D.m[1]-D.m[3]}mm;visibility:hidden`;m.innerHTML=ipHtml(IV);document.body.appendChild(m);const px=m.querySelector('.ipf').getBoundingClientRect().height;m.remove();H=Math.max(20,Math.ceil(px*25.4/96+D.m[0]+D.m[2]+3))}
+let st=Q('#pgst');if(!st){st=document.createElement('style');st.id='pgst';document.head.appendChild(st)}
+st.textContent=`@page{size:${D.w}mm ${H}mm;margin:${D.m.map(v=>v+'mm').join(' ')}}`;
+let h=Q('#pinv');if(!h){h=document.createElement('div');h.id='pinv';document.body.appendChild(h)}h.innerHTML=ipHtml(IV);
+document.body.classList.add('pinv');document.documentElement.classList.add('pinv');
+const cl=()=>{document.body.classList.remove('pinv');document.documentElement.classList.remove('pinv');h.innerHTML='';st.textContent='';removeEventListener('afterprint',cl)};
+addEventListener('afterprint',cl);return{cl,w:D.w,h:H,m:D.m}}
+function ipPrint(){const b=chk(IV,1);if(b){toast(b);return}if(IV.no&&IV.st!='Draft'){hx(IV,'Print dialog opened');upsert()}ipFlush();const p=ipPrintPrep();try{window.print();setTimeout(()=>{if(document.body.classList.contains('pinv'))p.cl()},1500)}catch(e){p.cl();toast('Printing is blocked in this view. Use Download PDF instead.')}}
+/* ---- PDF at the exact selected dimensions ---- */
+const ipFmt=u=>u.startsWith('data:image/png')?'PNG':'JPEG';
+pdf=function(i){if(!W.ft.pdf){deny('pdf');return false}const bad=chk(i);if(bad){toast(bad);return false}const J=window.jspdf;if(!J){toast('PDF library could not load (internet access to cdnjs is needed).');return false}ipFlush();const D=ipDim();return D.roll?ipPdfRcpt(J,i,D):ipPdfFull(J,i,D)};
+function ipPdfFull(J,i,D){const PF=D.P,S=PF.show,co=CO(),c=i.cust,t=tot(i),ttl=PF.title.trim()||IT().t,[mt,mr,mb,ml]=D.m,L=ml,R=D.w-mr,CW=R-L,fp=D.fs*.75,k=.3528,lh=s=>s*k*1.3,ac=ipHex(PF.accent),ctr=PF.align=='center',its=i.items.filter(x=>x.name.trim()||x.price!==''),lp=i.payments[i.payments.length-1];
+const d=new J.jsPDF({unit:'mm',format:[D.w,D.h],orientation:D.w>D.h?'landscape':'portrait',compress:true});let y=mt;
+const F=(s,b)=>{d.setFont('helvetica',b?'bold':'normal');d.setFontSize(s)},ens=h=>{if(y+h>D.h-mb-6){d.addPage();y=mt}},put=(ls,x,yy,sz,b,al)=>{F(sz,b);ls.forEach(l=>{d.text(l,x,yy+sz*k*.85,{align:al||'left'});yy+=lh(sz)});return yy},wrap=(s,w,sz,b)=>{F(sz,b);return d.splitTextToSize(String(s),w)};
+d.setTextColor(0);d.setDrawColor(0);
+let ly=y,ry=y;const lw=ctr?CW:CW*.58,rw=ctr?CW:CW*.38,lx=ctr?D.w/2:L,la=ctr?'center':'left',rx=ctr?D.w/2:R,ra=ctr?'center':'right';
+if(S.logo&&PF.logo){const z=ipLg(D,PF);try{d.addImage(PF.logo,ipFmt(PF.logo),ctr?(D.w-z.w)/2:L,ly,z.w,z.h)}catch(e){}ly+=z.h+1.5}
+ly=put(wrap(co.name,lw,fp*1.3,1),lx,ly,fp*1.3,1,la);const bl=[];if(S.addr){if(co.addr)bl.push(...wrap(co.addr,lw,fp,0));const ct=[co.phone,co.email].filter(Boolean).join('  |  ');if(ct)bl.push(...wrap(ct,lw,fp,0))}if(S.tid&&co.tid)bl.push(...wrap(PF.tidl+': '+co.tid,lw,fp,0));ly=put(bl,lx,ly,fp,0,la);
+if(ctr)ry=ly+1;let ts=fp*1.9;F(ts,1);while(d.getTextWidth(ttl)>rw&&ts>fp){ts-=.5;F(ts,1)}ry=put(wrap(ttl,rw,ts,1),rx,ry,ts,1,ra);
+const mt_=['No: '+(i.no||'(unsaved)')];if(S.date)mt_.push('Date: '+i.date);if(S.due)mt_.push('Due: '+i.due);if(S.status)mt_.push('Status: '+ist(i));ry=put(ctr?[mt_.join('    ')]:mt_,rx,ry,fp,0,ra);
+y=Math.max(ly,ry)+1.5;d.setDrawColor(...ac);d.setLineWidth(.6);d.line(L,y,R,y);d.setDrawColor(0);y+=3.5;
+const hw=S.ship?CW/2-3:CW,lab=(s,x,yy)=>{F(fp*.8,1);d.setTextColor(90);d.text(s.toUpperCase(),x,yy+fp*.8*k*.85);d.setTextColor(0);return yy+lh(fp*.8)};
+let by=lab(IT().p,L,y);by=put(wrap(c.name||'-',hw,fp,1),L,by,fp,1);if(S.cust){const a=wrap(c.addr||'',hw,fp,0).filter(Boolean);if(c.ph)a.push('WhatsApp: '+c.cc+' '+c.ph);by=put(a,L,by,fp,0)}
+let sy=y;if(S.ship){const sx=L+CW/2+3;sy=lab('Ship to',sx,sy);sy=put(wrap(c.ship||'Same as billing address',hw,fp,0),sx,sy,fp,0)}y=Math.max(by,sy)+3;
+ens(20);const hd=['#',IT().c,'Qty','Unit price'];if(S.disc)hd.push('Disc %');if(S.taxcol)hd.push('Tax');hd.push('Total');
+const bd=its.map((x,n)=>{const l=tot({items:[x],payments:[],charges:0}).L[0],r=[String(n+1),x.name+(S.sku&&x.sku?' ['+x.sku+']':'')+(S.desc&&x.desc?'\n'+x.desc:''),x.qty+' '+x.unit,mny(P(+x.price||0))];if(S.disc)r.push(String(+x.disc||0));if(S.taxcol)r.push(mny(l.t)+' ('+(+x.tax||0)+'%)');r.push(mny(l.tt));return r}),gr=PF.grid=='grid';
+d.autoTable({startY:y,margin:{left:ml,right:mr,top:mt,bottom:mb+6},theme:'plain',head:[hd],body:bd,styles:{fontSize:fp*.95,textColor:0,cellPadding:{top:1.2,bottom:1.2,left:1,right:1},overflow:'linebreak'},headStyles:{fontStyle:'bold',lineColor:ac,lineWidth:gr?.2:{top:.4,bottom:.4}},bodyStyles:{lineColor:gr?[150,150,150]:[200,200,200],lineWidth:gr?.15:{bottom:.15}},rowPageBreak:'avoid',showHead:'everyPage',columnStyles:Object.fromEntries(hd.map((h,n)=>[n,n==0?{cellWidth:8}:n<2?{}:{halign:'right'}]))});
+y=d.lastAutoTable.finalY+5;
+const tw=Math.min(CW*.62,90),tx=R-tw,tr=[['Subtotal (after discounts)',mny(t.sub)],['Tax',mny(t.tax)]];if(t.ch)tr.push(['Additional charges',mny(t.ch)]);const ex=S.paid?[['Amount paid',mny(t.paid)],['Balance due',mny(t.bal)]]:[];
+ens(lh(fp)*(tr.length+1+ex.length)+6);d.setTextColor(0);F(fp,0);tr.forEach(r=>{d.text(r[0],tx,y+fp*k*.85);d.text(r[1],R,y+fp*k*.85,{align:'right'});y+=lh(fp)});
+d.setLineWidth(.35);d.line(tx,y,R,y);y+=1;F(fp*1.1,1);d.text('Grand total',tx,y+fp*1.1*k*.85);d.text(mny(t.gt),R,y+fp*1.1*k*.85,{align:'right'});y+=lh(fp*1.1)+.5;d.line(tx,y,R,y);y+=1.5;
+ex.forEach((r,n)=>{F(fp,n==1);d.text(r[0],tx,y+fp*k*.85);d.text(r[1],R,y+fp*k*.85,{align:'right'});y+=lh(fp)});y+=3;
+const blk=(lb,tx_,sz)=>{const ls=wrap(tx_,CW,sz,0);ens(lh(sz)*(ls.length+1)+2);y=lab(lb,L,y);y=put(ls,L,y,sz,0)+1.5};
+if(S.words)blk('Amount in words',words(t.gt),fp);if(S.lastpay&&lp)blk('Last payment',lp.method+(lp.ref?' (Ref '+lp.ref+')':'')+' on '+lp.date,fp);if(S.pay&&PF.pay.trim())blk('Payment details',PF.pay,fp);if(S.notes&&i.notes)blk('Notes',i.notes,fp);if(S.terms&&co.terms)blk('Terms',co.terms,fp*.9);
+if(S.sign){ens(22);y+=12;d.setLineWidth(.3);d.line(R-55,y,R,y);F(fp,0);d.text(co.sign,R,y+4.5,{align:'right'});y+=9}
+if(S.foot&&PF.foot.trim()){const ls=wrap(PF.foot,CW,fp,0);ens(lh(fp)*ls.length+4);y+=2;put(ls,D.w/2,y,fp,0,'center')}
+const n=d.internal.getNumberOfPages();for(let p=1;p<=n;p++){d.setPage(p);F(7,0);d.setTextColor(0);d.text(i.no+'  |  Page '+p+' of '+n,D.w/2,D.h-Math.max(mb/2,2.5),{align:'center'})}return d.output('blob')}
+function ipPdfRcpt(J,i,D){const PF=D.P,S=PF.show,co=CO(),c=i.cust,t=tot(i),ttl=PF.title.trim()||IT().t,[mt,mr,mb,ml]=D.m,L=ml,R=D.w-mr,CW=R-L,fp=D.fs*.75,k=.3528,lh=s=>s*k*1.28,its=i.items.filter(x=>x.name.trim()||x.price!==''),lp=i.payments[i.payments.length-1];
+const run=d=>{let y=mt;d.setTextColor(0);d.setDrawColor(0);const F=(s,b)=>{d.setFont('helvetica',b?'bold':'normal');d.setFontSize(s)},ens=h=>{if(!D.auto&&y+h>D.h-mb){d.addPage();y=mt}},
+ct=(s,sz,b)=>{F(sz,b);d.splitTextToSize(String(s),CW).forEach(l=>{ens(lh(sz));d.text(l,D.w/2,y+sz*k*.85,{align:'center'});y+=lh(sz)})},
+lf=(s,sz,b)=>{F(sz,b);d.splitTextToSize(String(s),CW).forEach(l=>{ens(lh(sz));d.text(l,L,y+sz*k*.85);y+=lh(sz)})},
+row=(a,b,sz,bd)=>{F(sz,bd);const bw=d.getTextWidth(b),ls=d.splitTextToSize(a,Math.max(10,CW-bw-2));ens(lh(sz)*ls.length);ls.forEach((l,n)=>{d.text(l,L,y+sz*k*.85);if(n==0)d.text(b,R,y+sz*k*.85,{align:'right'});y+=lh(sz)})},
+sep=()=>{ens(3);d.setLineDashPattern([.8,.8],0);d.setLineWidth(.2);d.line(L,y+1,R,y+1);d.setLineDashPattern([],0);y+=2.5};
+if(S.logo&&PF.logo){const z=ipLg(D,PF);ens(z.h+1);try{d.addImage(PF.logo,ipFmt(PF.logo),(D.w-z.w)/2,y,z.w,z.h)}catch(e){}y+=z.h+1}
+ct(co.name,fp*1.25,1);if(S.addr){if(co.addr)ct(co.addr,fp*.9);const cn=[co.phone,co.email].filter(Boolean).join(' | ');if(cn)ct(cn,fp*.9)}if(S.tid&&co.tid)ct(PF.tidl+': '+co.tid,fp*.9);
+sep();ct(ttl,fp*1.1,1);row('No: '+(i.no||'(unsaved)'),S.date?i.date:'',fp,0);if(S.due||S.status)row(S.due?'Due: '+i.due:'',S.status?ist(i):'',fp,0);sep();
+lf(IT().p+': '+(c.name||'-'),fp,1);if(S.cust){if(c.ph)lf('Ph: '+c.cc+' '+c.ph,fp);if(c.addr)lf(c.addr,fp)}if(S.ship&&c.ship)lf('Ship to: '+c.ship,fp);sep();
+its.forEach(x=>{const l=tot({items:[x],payments:[],charges:0}).L[0];lf(x.name+(S.sku&&x.sku?' ['+x.sku+']':''),fp,1);if(S.desc&&x.desc)lf(x.desc,fp*.88);row(x.qty+' '+x.unit+' x '+mny(P(+x.price||0)),mny(l.tt),fp,0);const dn=(S.disc&&+x.disc)?'Disc '+(+x.disc)+'% ':'',tn=(S.taxcol&&+x.tax)?'Tax '+(+x.tax)+'% ('+mny(l.t)+')':'';if(dn||tn)lf(dn+tn,fp*.88);y+=.8});
+sep();row('Subtotal',mny(t.sub),fp,0);row('Tax',mny(t.tax),fp,0);if(t.ch)row('Charges',mny(t.ch),fp,0);row('TOTAL',mny(t.gt),fp*1.12,1);if(S.paid){row('Paid',mny(t.paid),fp,0);row('Balance',mny(t.bal),fp,1)}
+if(S.words){y+=1;lf(words(t.gt),fp*.88)}if(S.lastpay&&lp)lf('Last payment: '+lp.method+(lp.ref?' (Ref '+lp.ref+')':'')+' '+lp.date,fp*.88);
+if(S.pay&&PF.pay.trim()){sep();lf(PF.pay,fp*.88)}if(S.notes&&i.notes)lf('Notes: '+i.notes,fp*.88);if(S.terms&&co.terms){sep();lf(co.terms,fp*.8)}
+if(S.sign){ens(14);y+=9;d.setLineWidth(.25);d.line(R-Math.min(40,CW*.7),y,R,y);F(fp*.88,0);d.text(co.sign,R,y+fp*.88*k*1.4,{align:'right'});y+=lh(fp)+2}
+if(S.foot&&PF.foot.trim()){y+=1;ct(PF.foot,fp*.95,0)}return y};
+if(D.auto){const dry=new J.jsPDF({unit:'mm',format:[D.w,5000],compress:true}),ye=run(dry),H=Math.max(20,Math.ceil(ye+mb));const d=new J.jsPDF({unit:'mm',format:[D.w,H],orientation:D.w>H?'landscape':'portrait',compress:true});run(d);return d.output('blob')}
+const d=new J.jsPDF({unit:'mm',format:[D.w,D.h],orientation:D.w>D.h?'landscape':'portrait',compress:true});run(d);return d.output('blob')}
+/* ---- wire into the existing Invoice Builder screens (all original buttons stay) ---- */
+const _ipInvDet=invDet;invDet=function(){return _ipInvDet().replace('<div class="invui">','<div class="invui">'+ippanel()).replace('onclick="pvGo()">Preview Invoice','onclick="ipPrev()">Preview Invoice')};
+const _ipInvList=invList;invList=function(){return _ipInvList().replace('<button onclick="coDlg()">Business details</button>','<button onclick="ipDlg()">Paper &amp; design</button><button onclick="coDlg()">Business details</button>')};
+function ipDlg(){DL.style.width='min(98vw,1180px)';DL.innerHTML=`<h3>Invoice paper &amp; design</h3><div class="ivg"><div>${ippanel()}</div><div><div class="mu" style="margin-bottom:4px">Sample invoice preview</div><div id="ipsv">${sheet(ipSample())}</div></div></div><div class="act" style="margin-top:10px"><button class="pri" onclick="DL.close()">Done</button></div>`;DL.showModal();ipFit()}
+
 </script><!-- TAQVION PWA START -->
 <meta name="theme-color" content="#061B36">
 <script>
